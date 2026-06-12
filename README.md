@@ -88,3 +88,20 @@ python -m ki_cad archcad benchmark-template `
   --count 20 `
   --out runs\archcad_semantic11_benchmark
 ```
+
+To cover visual variants, export multiple templates from ArchCAD annotations and benchmark with the directory:
+
+```powershell
+python -m ki_cad archcad export-templates `
+  --svg data\interim\archcad_sample\sample.svg `
+  --json data\interim\archcad_sample\sample.json `
+  --semantic 11 `
+  --out data\interim\semantic11_templates
+
+python -m ki_cad archcad benchmark-template `
+  --symbol-dir data\interim\semantic11_templates `
+  --semantic 11 `
+  --label fixture `
+  --count 20 `
+  --out runs\archcad_semantic11_multitemplate_benchmark
+```

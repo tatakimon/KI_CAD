@@ -63,3 +63,37 @@ def detect_by_geometry(
 
     kept = non_max_suppression(raw, iou_threshold=nms_iou)
     return kept[:max_detections]
+
+
+def detect_by_geometry_templates(
+    image: np.ndarray,
+    symbol_paths: list[Path],
+    label: str,
+    threshold: float,
+    scales: list[float],
+    nms_iou: float,
+    max_detections: int,
+) -> list[Detection]:
+    raw: list[Detection] = []
+    for symbol_path in symbol_paths:
+        detections = detect_by_geometry(
+            image=image,
+            symbol_path=symbol_path,
+            label=label,
+            threshold=threshold,
+            scales=scales,
+            nms_iou=nms_iou,
+            max_detections=max_detections,
+        )
+        raw.extend(
+            Detection(
+                label=det.label,
+                score=det.score,
+                box=det.box,
+                source=f"{det.source}:{symbol_path.name}",
+            )
+            for det in detections
+        )
+
+    kept = non_max_suppression(raw, iou_threshold=nms_iou)
+    return kept[:max_detections]

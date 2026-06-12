@@ -7,7 +7,7 @@ from pathlib import Path
 from ki_cad.core.nms import non_max_suppression
 from ki_cad.core.render import load_input, save_image
 from ki_cad.core.slicing import draw_tile_debug, write_tiles
-from ki_cad.detectors.geometry import detect_by_geometry
+from ki_cad.detectors.geometry import detect_by_geometry_templates
 from ki_cad.detectors.vlm_json import load_vlm_or_manual_detections
 from ki_cad.visualization.annotate import draw_detections
 
@@ -15,9 +15,10 @@ from ki_cad.visualization.annotate import draw_detections
 @dataclass(frozen=True)
 class DetectConfig:
     input_path: Path
-    symbol_path: Path
     out_dir: Path
     label: str
+    symbol_path: Path | None = None
+    symbol_dir: Path | None = None
     page: int = 1
     dpi: int = 200
     threshold: float = 0.45
@@ -32,6 +33,23 @@ class DetectConfig:
 def _write_json(path: Path, data: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _symbol_paths(config: DetectConfig) -> list[Path]:
+    paths: list[Path] = []
+    if config.symbol_path is not None:
+        paths.append(config.symbol_path)
+    if config.symbol_dir is not None:
+        paths.extend(
+            sorted(
+                path
+                for path in config.symbol_dir.iterdir()
+                if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+            )
+        )
+    if not paths:
+        raise ValueError("Provide symbol_path or symbol_dir")
+    return paths
 
 
 def run_detection(config: DetectConfig) -> dict[str, int]:
@@ -49,9 +67,10 @@ def run_detection(config: DetectConfig) -> dict[str, int]:
     )
     save_image(config.out_dir / "tile_debug.png", draw_tile_debug(image, tiles))
 
-    geometry = detect_by_geometry(
+    symbols = _symbol_paths(config)
+    geometry = detect_by_geometry_templates(
         image=image,
-        symbol_path=config.symbol_path,
+        symbol_paths=symbols,
         label=config.label,
         threshold=config.threshold,
         scales=list(config.scales),
@@ -74,6 +93,7 @@ def run_detection(config: DetectConfig) -> dict[str, int]:
             "image_height": image.shape[0],
             "tile_size": config.tile_size,
             "overlap": config.overlap,
+            "symbols": [str(path) for path in symbols],
             "tiles": [tile.to_dict() for tile in tiles],
         },
     )
@@ -82,6 +102,7 @@ def run_detection(config: DetectConfig) -> dict[str, int]:
 
     return {
         "tiles": len(tiles),
+        "symbols": len(symbols),
         "geometry": len(geometry),
         "vlm": len(vlm),
         "final": len(final),

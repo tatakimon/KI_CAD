@@ -181,3 +181,39 @@ def export_instance_boxes(
         save_image(preview_path, draw_detections(image, detections))
 
     return detections
+
+
+def export_instance_crops(
+    json_path: Path,
+    svg_path: Path,
+    semantic: int,
+    out_dir: Path,
+    dpi: int,
+    padding: int = 8,
+    max_crops: int | None = None,
+) -> list[Path]:
+    truth_path = out_dir / "_truth_boxes.json"
+    detections = export_instance_boxes(
+        json_path=json_path,
+        svg_path=svg_path,
+        semantic=semantic,
+        out_json=truth_path,
+        dpi=dpi,
+        padding=padding,
+    )
+    image = load_input(svg_path, page=1, dpi=dpi)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    crop_paths: list[Path] = []
+    for index, detection in enumerate(detections):
+        if max_crops is not None and len(crop_paths) >= max_crops:
+            break
+        box = detection.box
+        if box.width < 8 or box.height < 8:
+            continue
+        crop = image[box.y1 : box.y2, box.x1 : box.x2]
+        crop_path = out_dir / f"semantic_{semantic}_{index:03d}_{detection.source}.png"
+        save_image(crop_path, crop)
+        crop_paths.append(crop_path)
+
+    return crop_paths
