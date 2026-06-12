@@ -28,6 +28,25 @@ def first_svg_id(svg_zip: Path) -> str:
     raise ValueError(f"No SVG samples found in {svg_zip}")
 
 
+def find_sample_ids_with_semantic(raw_dir: Path, semantic: int, limit: int) -> list[str]:
+    json_zip = raw_dir / "json.zip"
+    if not json_zip.exists():
+        raise FileNotFoundError(f"Missing {json_zip}")
+
+    sample_ids: list[str] = []
+    with zipfile.ZipFile(json_zip) as archive:
+        for name in archive.namelist():
+            if not name.startswith("json/") or not name.endswith(".json"):
+                continue
+            data = json.loads(archive.read(name))
+            if any(entity.get("semantic") == semantic for entity in data.get("entities", [])):
+                sample_ids.append(Path(name).stem)
+                if len(sample_ids) >= limit:
+                    break
+
+    return sample_ids
+
+
 def extract_sample(raw_dir: Path, out_dir: Path, sample_id: str | None, dpi: int) -> ArchCadSample:
     out_dir.mkdir(parents=True, exist_ok=True)
     svg_zip = raw_dir / "svg.zip"

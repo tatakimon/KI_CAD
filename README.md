@@ -77,3 +77,14 @@ python -m ki_cad archcad export-truth `
   --out data\interim\archcad_sample\fixture_truth.json `
   --preview data\interim\archcad_sample\fixture_truth.png
 ```
+
+Run a quick multi-sample ArchCAD benchmark with the same target crop:
+
+```powershell
+python -m ki_cad archcad benchmark-template `
+  --symbol data\interim\archcad_sample\symbol_crop.png `
+  --semantic 11 `
+  --label fixture `
+  --count 20 `
+  --out runs\archcad_semantic11_benchmark
+```
