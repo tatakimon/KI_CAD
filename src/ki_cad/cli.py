@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from ki_cad.datasets.archcad import extract_sample, summarize_annotation
+from ki_cad.evaluation import evaluate_detections, load_detections
 from ki_cad.pipeline.detect import DetectConfig, run_detection
 
 
@@ -60,6 +62,26 @@ def archcad_extract_command(args: argparse.Namespace) -> None:
     print(f"Preview: {sample.preview_path}")
 
 
+def evaluate_command(args: argparse.Namespace) -> None:
+    predictions = load_detections(args.predictions)
+    truth = load_detections(args.truth)
+    result = evaluate_detections(predictions, truth, iou_threshold=args.iou)
+    result_data = result.to_dict()
+
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(result_data, indent=2), encoding="utf-8")
+
+    print(f"Predictions: {len(predictions)}")
+    print(f"Ground truth: {len(truth)}")
+    print(f"IoU threshold: {args.iou:.2f}")
+    print(f"TP/FP/FN: {result.true_positives}/{result.false_positives}/{result.false_negatives}")
+    print(f"Precision: {result.precision:.3f}")
+    print(f"Recall: {result.recall:.3f}")
+    print(f"F1: {result.f1:.3f}")
+    print(f"Mean matched IoU: {result.mean_iou:.3f}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ki-cad")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -79,6 +101,13 @@ def build_parser() -> argparse.ArgumentParser:
     detect.add_argument("--overlap", type=int, default=256, help="Tile overlap in pixels")
     detect.add_argument("--vlm-json", type=Path, default=None, help="Optional VLM/manual global-box JSON")
     detect.set_defaults(func=detect_command)
+
+    evaluate = subparsers.add_parser("evaluate", help="Score predictions against ground-truth boxes")
+    evaluate.add_argument("--predictions", required=True, type=Path, help="Predicted detections JSON")
+    evaluate.add_argument("--truth", required=True, type=Path, help="Ground-truth detections JSON")
+    evaluate.add_argument("--iou", type=float, default=0.5, help="IoU threshold for a successful match")
+    evaluate.add_argument("--out", type=Path, default=None, help="Optional JSON report output path")
+    evaluate.set_defaults(func=evaluate_command)
 
     archcad = subparsers.add_parser("archcad", help="ArchCAD dataset utilities")
     archcad_subparsers = archcad.add_subparsers(dest="archcad_command", required=True)

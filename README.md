@@ -55,3 +55,13 @@ python -m ki_cad archcad extract-sample --out data\interim\archcad_sample
 ```
 
 This writes a renderable SVG plus a PNG preview for quick detector experiments.
+
+## Scoring Results
+
+Detector confidence is not the same as accuracy. To score accuracy, compare predictions with approved boxes:
+
+```powershell
+python -m ki_cad evaluate --predictions runs\demo\final_detections.json --truth data\interim\truth.json --iou 0.5
+```
+
+The evaluator reports precision, recall, F1, and mean matched IoU.
