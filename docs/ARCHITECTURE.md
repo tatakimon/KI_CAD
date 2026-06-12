@@ -5,7 +5,7 @@ KI_CAD is organized around a stable detection contract rather than one model cho
 ## Flow
 
 ```text
-PDF/image input
+PDF/SVG/image input
   -> render/load page
   -> slice page into overlapping tiles
   -> geometry detector from symbol crop

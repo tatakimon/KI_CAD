@@ -8,12 +8,13 @@ import pymupdf
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+VECTOR_SUFFIXES = {".pdf", ".svg"}
 
 
 def load_input(path: Path, page: int, dpi: int) -> np.ndarray:
     suffix = path.suffix.lower()
-    if suffix == ".pdf":
-        return render_pdf_page(path, page=page, dpi=dpi)
+    if suffix in VECTOR_SUFFIXES:
+        return render_document_page(path, page=page, dpi=dpi)
     if suffix in IMAGE_SUFFIXES:
         image = cv2.imread(str(path), cv2.IMREAD_COLOR)
         if image is None:
@@ -22,7 +23,7 @@ def load_input(path: Path, page: int, dpi: int) -> np.ndarray:
     raise ValueError(f"Unsupported input type: {path.suffix}")
 
 
-def render_pdf_page(path: Path, page: int, dpi: int) -> np.ndarray:
+def render_document_page(path: Path, page: int, dpi: int) -> np.ndarray:
     if page < 1:
         raise ValueError("--page is 1-based and must be >= 1")
 
@@ -38,6 +39,10 @@ def render_pdf_page(path: Path, page: int, dpi: int) -> np.ndarray:
         return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     finally:
         doc.close()
+
+
+def render_pdf_page(path: Path, page: int, dpi: int) -> np.ndarray:
+    return render_document_page(path, page=page, dpi=dpi)
 
 
 def save_image(path: Path, image: np.ndarray) -> None:

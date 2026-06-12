@@ -7,7 +7,7 @@ The project is intentionally built around two comparable detection tracks:
 - **Geometry/OpenCV track**: fast edge/dot-style template matching from a target symbol crop.
 - **VLM/manual track**: optional JSON detections in the same box format, so VLM results can be compared or fused later.
 
-The first working command renders one PDF page, slices it into VLM-ready tiles, runs geometry matching, merges duplicate boxes with NMS, and writes annotated outputs.
+The first working command renders one PDF/SVG page, slices it into VLM-ready tiles, runs geometry matching, merges duplicate boxes with NMS, and writes annotated outputs.
 
 ## Quick Start
 
@@ -44,3 +44,14 @@ Later we can add:
 - human approval UI,
 - YOLO/RT-DETR label export,
 - ArchCAD-style dataset experiments.
+
+## ArchCAD Samples
+
+After downloading the smaller ArchCAD archives into `data/raw/archcad`, extract one aligned SVG/JSON/caption sample:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m ki_cad archcad extract-sample --out data\interim\archcad_sample
+```
+
+This writes a renderable SVG plus a PNG preview for quick detector experiments.

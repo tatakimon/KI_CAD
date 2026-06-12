@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from ki_cad.datasets.archcad import extract_sample, summarize_annotation
 from ki_cad.pipeline.detect import DetectConfig, run_detection
 
 
@@ -40,12 +41,31 @@ def detect_command(args: argparse.Namespace) -> None:
     print(f"Annotated output: {args.out / 'annotated.png'}")
 
 
+def archcad_extract_command(args: argparse.Namespace) -> None:
+    sample = extract_sample(
+        raw_dir=args.raw_dir,
+        out_dir=args.out,
+        sample_id=args.sample_id,
+        dpi=args.dpi,
+    )
+    print(f"Sample ID: {sample.sample_id}")
+    print(f"SVG: {sample.svg_path}")
+    if sample.json_path:
+        summary = summarize_annotation(sample.json_path)
+        print(f"JSON: {sample.json_path}")
+        print(f"Entities: {summary['entities']}")
+        print(f"Top semantic counts: {list(summary['semantic_counts'].items())[:8]}")
+    if sample.caption_path:
+        print(f"Caption: {sample.caption_path}")
+    print(f"Preview: {sample.preview_path}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ki-cad")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     detect = subparsers.add_parser("detect", help="Find a symbol crop in a CAD PDF/image")
-    detect.add_argument("--input", required=True, type=Path, help="Input PDF or image")
+    detect.add_argument("--input", required=True, type=Path, help="Input PDF, SVG, or image")
     detect.add_argument("--page", type=int, default=1, help="1-based PDF page number")
     detect.add_argument("--dpi", type=int, default=200, help="PDF render DPI")
     detect.add_argument("--symbol", required=True, type=Path, help="Target symbol crop image")
@@ -59,6 +79,16 @@ def build_parser() -> argparse.ArgumentParser:
     detect.add_argument("--overlap", type=int, default=256, help="Tile overlap in pixels")
     detect.add_argument("--vlm-json", type=Path, default=None, help="Optional VLM/manual global-box JSON")
     detect.set_defaults(func=detect_command)
+
+    archcad = subparsers.add_parser("archcad", help="ArchCAD dataset utilities")
+    archcad_subparsers = archcad.add_subparsers(dest="archcad_command", required=True)
+
+    extract = archcad_subparsers.add_parser("extract-sample", help="Extract one ArchCAD SVG/JSON/caption sample")
+    extract.add_argument("--raw-dir", type=Path, default=Path("data/raw/archcad"), help="Directory with ArchCAD ZIPs")
+    extract.add_argument("--sample-id", default=None, help="Sample UUID; defaults to the first SVG in svg.zip")
+    extract.add_argument("--out", type=Path, default=Path("data/interim/archcad_sample"), help="Output sample directory")
+    extract.add_argument("--dpi", type=int, default=144, help="Preview render DPI")
+    extract.set_defaults(func=archcad_extract_command)
 
     return parser
 
