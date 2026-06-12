@@ -65,3 +65,15 @@ python -m ki_cad evaluate --predictions runs\demo\final_detections.json --truth 
 ```
 
 The evaluator reports precision, recall, F1, and mean matched IoU.
+
+For ArchCAD samples, export ground-truth boxes from a semantic class first:
+
+```powershell
+python -m ki_cad archcad export-truth `
+  --svg data\interim\archcad_sample\sample.svg `
+  --json data\interim\archcad_sample\sample.json `
+  --semantic 11 `
+  --label fixture `
+  --out data\interim\archcad_sample\fixture_truth.json `
+  --preview data\interim\archcad_sample\fixture_truth.png
+```

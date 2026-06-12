@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from ki_cad.datasets.archcad import extract_sample, summarize_annotation
+from ki_cad.datasets.archcad import extract_sample, export_instance_boxes, summarize_annotation
 from ki_cad.evaluation import evaluate_detections, load_detections
 from ki_cad.pipeline.detect import DetectConfig, run_detection
 
@@ -60,6 +60,24 @@ def archcad_extract_command(args: argparse.Namespace) -> None:
     if sample.caption_path:
         print(f"Caption: {sample.caption_path}")
     print(f"Preview: {sample.preview_path}")
+
+
+def archcad_export_truth_command(args: argparse.Namespace) -> None:
+    detections = export_instance_boxes(
+        json_path=args.json,
+        svg_path=args.svg,
+        semantic=args.semantic,
+        out_json=args.out,
+        dpi=args.dpi,
+        preview_path=args.preview,
+        label=args.label,
+        padding=args.padding,
+    )
+    print(f"Semantic: {args.semantic}")
+    print(f"Boxes exported: {len(detections)}")
+    print(f"Truth JSON: {args.out}")
+    if args.preview:
+        print(f"Preview: {args.preview}")
 
 
 def evaluate_command(args: argparse.Namespace) -> None:
@@ -118,6 +136,20 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--out", type=Path, default=Path("data/interim/archcad_sample"), help="Output sample directory")
     extract.add_argument("--dpi", type=int, default=144, help="Preview render DPI")
     extract.set_defaults(func=archcad_extract_command)
+
+    export_truth = archcad_subparsers.add_parser(
+        "export-truth",
+        help="Export ArchCAD instance boxes for one semantic class",
+    )
+    export_truth.add_argument("--json", required=True, type=Path, help="ArchCAD annotation JSON")
+    export_truth.add_argument("--svg", required=True, type=Path, help="Matching ArchCAD SVG")
+    export_truth.add_argument("--semantic", required=True, type=int, help="Semantic class ID to export")
+    export_truth.add_argument("--label", default=None, help="Output label; defaults to semantic_<id>")
+    export_truth.add_argument("--dpi", type=int, default=144, help="Render DPI used by predictions")
+    export_truth.add_argument("--padding", type=int, default=0, help="Pixel padding around exported boxes")
+    export_truth.add_argument("--out", required=True, type=Path, help="Output truth JSON")
+    export_truth.add_argument("--preview", type=Path, default=None, help="Optional annotated preview image")
+    export_truth.set_defaults(func=archcad_export_truth_command)
 
     return parser
 
