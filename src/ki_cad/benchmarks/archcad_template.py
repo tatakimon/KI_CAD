@@ -17,6 +17,7 @@ class ArchCadTemplateBenchmarkConfig:
     label: str
     symbol_path: Path | None = None
     symbol_dir: Path | None = None
+    template_root: Path | None = None
     count: int = 20
     dpi: int = 144
     threshold: float = 0.58
@@ -77,6 +78,7 @@ def run_archcad_template_benchmark(config: ArchCadTemplateBenchmarkConfig) -> di
                 label=config.label,
                 symbol_path=config.symbol_path,
                 symbol_dir=config.symbol_dir,
+                template_root=config.template_root,
                 dpi=config.dpi,
                 threshold=config.threshold,
                 scales=config.scales,
@@ -118,6 +120,7 @@ def run_archcad_template_benchmark(config: ArchCadTemplateBenchmarkConfig) -> di
         "count_evaluated": len(per_sample),
         "symbol_path": str(config.symbol_path) if config.symbol_path else None,
         "symbol_dir": str(config.symbol_dir) if config.symbol_dir else None,
+        "template_root": str(config.template_root) if config.template_root else None,
         "threshold": config.threshold,
         "scales": list(config.scales),
         "nms_iou": config.nms_iou,

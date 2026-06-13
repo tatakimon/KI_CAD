@@ -4,10 +4,10 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from ki_cad.core.nms import non_max_suppression
+from ki_cad.core.nms import non_max_suppression_by_label
 from ki_cad.core.render import load_input, save_image
 from ki_cad.core.slicing import draw_tile_debug, write_tiles
-from ki_cad.detectors.geometry import detect_by_geometry_templates
+from ki_cad.detectors.geometry import detect_by_labeled_geometry_templates
 from ki_cad.detectors.vlm_json import load_vlm_or_manual_detections
 from ki_cad.visualization.annotate import draw_detections
 
@@ -19,6 +19,7 @@ class DetectConfig:
     label: str
     symbol_path: Path | None = None
     symbol_dir: Path | None = None
+    template_root: Path | None = None
     page: int = 1
     dpi: int = 200
     threshold: float = 0.45
@@ -35,21 +36,27 @@ def _write_json(path: Path, data: object) -> None:
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
-def _symbol_paths(config: DetectConfig) -> list[Path]:
-    paths: list[Path] = []
+def _symbol_templates(config: DetectConfig) -> list[tuple[Path, str]]:
+    templates: list[tuple[Path, str]] = []
     if config.symbol_path is not None:
-        paths.append(config.symbol_path)
+        templates.append((config.symbol_path, config.label))
     if config.symbol_dir is not None:
-        paths.extend(
-            sorted(
-                path
-                for path in config.symbol_dir.iterdir()
-                if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
-            )
-        )
-    if not paths:
-        raise ValueError("Provide symbol_path or symbol_dir")
-    return paths
+        templates.extend((path, config.label) for path in _image_files(config.symbol_dir))
+    if config.template_root is not None:
+        for class_dir in sorted(path for path in config.template_root.iterdir() if path.is_dir()):
+            label = class_dir.name.split("_", 1)[1] if "_" in class_dir.name else class_dir.name
+            templates.extend((path, label) for path in _image_files(class_dir))
+    if not templates:
+        raise ValueError("Provide symbol_path, symbol_dir, or template_root")
+    return templates
+
+
+def _image_files(directory: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in directory.iterdir()
+        if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+    )
 
 
 def run_detection(config: DetectConfig) -> dict[str, int]:
@@ -67,18 +74,17 @@ def run_detection(config: DetectConfig) -> dict[str, int]:
     )
     save_image(config.out_dir / "tile_debug.png", draw_tile_debug(image, tiles))
 
-    symbols = _symbol_paths(config)
-    geometry = detect_by_geometry_templates(
+    templates = _symbol_templates(config)
+    geometry = detect_by_labeled_geometry_templates(
         image=image,
-        symbol_paths=symbols,
-        label=config.label,
+        templates=templates,
         threshold=config.threshold,
         scales=list(config.scales),
         nms_iou=config.nms_iou,
         max_detections=config.max_detections,
     )
     vlm = load_vlm_or_manual_detections(config.vlm_json, label=config.label)
-    final = non_max_suppression(geometry + vlm, iou_threshold=config.nms_iou)
+    final = non_max_suppression_by_label(geometry + vlm, iou_threshold=config.nms_iou)
 
     _write_json(config.out_dir / "geometry_detections.json", [item.to_dict() for item in geometry])
     _write_json(config.out_dir / "vlm_detections.json", [item.to_dict() for item in vlm])
@@ -93,7 +99,7 @@ def run_detection(config: DetectConfig) -> dict[str, int]:
             "image_height": image.shape[0],
             "tile_size": config.tile_size,
             "overlap": config.overlap,
-            "symbols": [str(path) for path in symbols],
+            "templates": [{"file": str(path), "label": label} for path, label in templates],
             "tiles": [tile.to_dict() for tile in tiles],
         },
     )
@@ -102,7 +108,7 @@ def run_detection(config: DetectConfig) -> dict[str, int]:
 
     return {
         "tiles": len(tiles),
-        "symbols": len(symbols),
+        "symbols": len(templates),
         "geometry": len(geometry),
         "vlm": len(vlm),
         "final": len(final),

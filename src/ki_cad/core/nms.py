@@ -32,3 +32,15 @@ def non_max_suppression(detections: list[Detection], iou_threshold: float) -> li
             kept.append(candidate)
 
     return kept
+
+
+def non_max_suppression_by_label(detections: list[Detection], iou_threshold: float) -> list[Detection]:
+    grouped: dict[str, list[Detection]] = {}
+    for detection in detections:
+        grouped.setdefault(detection.label, []).append(detection)
+
+    kept: list[Detection] = []
+    for label_detections in grouped.values():
+        kept.extend(non_max_suppression(label_detections, iou_threshold=iou_threshold))
+
+    return sorted(kept, key=lambda item: item.score, reverse=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,41 @@ from xml.etree import ElementTree
 from ki_cad.core.models import Box, Detection
 from ki_cad.core.render import load_input, save_image
 from ki_cad.visualization.annotate import draw_detections
+
+
+ARCHCAD_CLASS_NAMES = {
+    0: "axis_grid",
+    1: "single_door",
+    2: "double_door",
+    3: "parent_child_door",
+    4: "other_door",
+    5: "elevator",
+    6: "staircase",
+    7: "sink",
+    8: "urinal",
+    9: "toilet",
+    10: "bathtub",
+    11: "squat_toilet",
+    12: "other_fixtures",
+    13: "drain",
+    14: "table",
+    15: "chair",
+    16: "bed",
+    17: "sofa",
+    18: "hole",
+    19: "glass",
+    20: "wall",
+    21: "concrete_column",
+    22: "steel_column",
+    23: "concrete_beam",
+    24: "steel_beam",
+    25: "parking_space",
+    26: "foundation",
+    27: "pile",
+    28: "rebar",
+    29: "fire_hydrant",
+    100: "others",
+}
 
 
 @dataclass(frozen=True)
@@ -45,6 +81,29 @@ def find_sample_ids_with_semantic(raw_dir: Path, semantic: int, limit: int) -> l
                     break
 
     return sample_ids
+
+
+def find_sample_ids_with_semantics(raw_dir: Path, semantics: list[int], limit_per_semantic: int) -> dict[int, list[str]]:
+    json_zip = raw_dir / "json.zip"
+    if not json_zip.exists():
+        raise FileNotFoundError(f"Missing {json_zip}")
+
+    targets = set(semantics)
+    found: dict[int, list[str]] = {semantic: [] for semantic in semantics}
+    with zipfile.ZipFile(json_zip) as archive:
+        for name in archive.namelist():
+            if not name.startswith("json/") or not name.endswith(".json"):
+                continue
+            data = json.loads(archive.read(name))
+            sample_semantics = {entity.get("semantic") for entity in data.get("entities", [])}
+            sample_id = Path(name).stem
+            for semantic in targets.intersection(sample_semantics):
+                if len(found[semantic]) < limit_per_semantic:
+                    found[semantic].append(sample_id)
+            if all(len(ids) >= limit_per_semantic for ids in found.values()):
+                break
+
+    return found
 
 
 def extract_sample(raw_dir: Path, out_dir: Path, sample_id: str | None, dpi: int) -> ArchCadSample:
@@ -217,3 +276,75 @@ def export_instance_crops(
         crop_paths.append(crop_path)
 
     return crop_paths
+
+
+def build_template_library(
+    raw_dir: Path,
+    out_dir: Path,
+    semantics: list[int],
+    samples_per_class: int,
+    max_crops_per_class: int,
+    dpi: int,
+    padding: int,
+) -> dict[str, object]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sample_ids_by_semantic = find_sample_ids_with_semantics(
+        raw_dir=raw_dir,
+        semantics=semantics,
+        limit_per_semantic=samples_per_class,
+    )
+
+    manifest: dict[str, object] = {
+        "raw_dir": str(raw_dir),
+        "dpi": dpi,
+        "padding": padding,
+        "samples_per_class": samples_per_class,
+        "max_crops_per_class": max_crops_per_class,
+        "classes": {},
+    }
+
+    for semantic in semantics:
+        class_name = ARCHCAD_CLASS_NAMES.get(semantic, f"semantic_{semantic}")
+        class_dir = out_dir / f"{semantic:03d}_{class_name}"
+        class_dir.mkdir(parents=True, exist_ok=True)
+        sample_ids = sample_ids_by_semantic.get(semantic, [])
+        exported: list[str] = []
+
+        for sample_id in sample_ids:
+            if len(exported) >= max_crops_per_class:
+                break
+            sample_dir = out_dir / "_samples" / sample_id
+            sample = extract_sample(raw_dir=raw_dir, out_dir=sample_dir, sample_id=sample_id, dpi=dpi)
+            if sample.json_path is None:
+                continue
+            temp_dir = out_dir / "_tmp" / f"{semantic}_{sample_id}"
+            crop_paths = export_instance_crops(
+                json_path=sample.json_path,
+                svg_path=sample.svg_path,
+                semantic=semantic,
+                out_dir=temp_dir,
+                dpi=dpi,
+                padding=padding,
+            )
+            for crop_path in crop_paths:
+                if len(exported) >= max_crops_per_class:
+                    break
+                target = class_dir / _safe_template_name(semantic, class_name, sample_id, len(exported), crop_path.name)
+                target.write_bytes(crop_path.read_bytes())
+                exported.append(str(target))
+
+        manifest["classes"][str(semantic)] = {
+            "name": class_name,
+            "folder": str(class_dir),
+            "sample_ids": sample_ids,
+            "templates": exported,
+            "template_count": len(exported),
+        }
+
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def _safe_template_name(semantic: int, class_name: str, sample_id: str, index: int, original_name: str) -> str:
+    suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", original_name)
+    return f"{semantic:03d}_{class_name}_{index:03d}_{sample_id[:8]}_{suffix}"

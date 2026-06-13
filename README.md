@@ -105,3 +105,22 @@ python -m ki_cad archcad benchmark-template `
   --count 20 `
   --out runs\archcad_semantic11_multitemplate_benchmark
 ```
+
+For the no-training MVP, build a reference library for the useful countable classes:
+
+```powershell
+python -m ki_cad archcad build-template-library `
+  --semantics 5 6 7 8 9 10 11 29 `
+  --samples-per-class 5 `
+  --max-crops-per-class 25 `
+  --out data\interim\reference_library
+```
+
+Then detect with class labels from the library folders:
+
+```powershell
+python -m ki_cad detect `
+  --input path\to\drawing.svg `
+  --template-root data\interim\reference_library `
+  --out runs\reference_demo
+```
